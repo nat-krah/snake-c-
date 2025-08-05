@@ -2,6 +2,7 @@
 #include <thread>
 #include <queue>
 #include <sys/ioctl.h>
+#include <unistd.h>
 
 #include "tComands.cpp"
 #include "rawmode.cpp"
@@ -9,19 +10,19 @@
 
 
 /*
-rewrite fruitGen()
-
-fix intro sequence
-
-bugs, hitting the bottom on the game causes funny graphics
+Work to do:
+- rewrite fruitGen()
+- fix intro sequence
+- bugs
+    - hitting the bottom on the game causes funny graphics
 */
 
 
-/**********************\
-
-        Variables
-
-\**********************/
+/***************************************************************************\
+*                                                                           *
+*                                  Variables                                *
+*                                                                           *
+\***************************************************************************/
 
 
 //Snake structure
@@ -65,23 +66,23 @@ int fruitY = 0;
 int fruitChar = '0';
 
 
-/**********************\
+/***************************************************************************\
+*                                                                           *
+*                              General function                             *
+*                                                                           *
+\***************************************************************************/
 
-    General functions
 
-\**********************/
-
-
-//Doesn't actually randomize stuff
+//Generate a sudo random number from x to y
 int randi(int x, int y){
     srand(time(0));
     int randNum = x + (rand() % (y - x + 1));
     return randNum;
 }
 
-//Walk down the ll snake and print each charater
+//Walk down the linked list snake and print each charater
 void printSnake(snakeNode* snakeHead){
-    snakeNode* t = snakeHead;
+    snakeNode* t = snakeHead; 
     for (int i = 1; i < length + 1; i++){
         mvp(t->x, t->y, mainC);
         t = t->next;
@@ -167,6 +168,8 @@ void get_terminal_size(int& width, int& height) {
 }
 
 
+
+//This needs more work
 void introsequence(){
     
     //Check if we should use intro sequence
@@ -175,7 +178,7 @@ void introsequence(){
     printf("Use intro sequence (y/n): ");
     cin >> yOrN;
 
-    if (yOrN == 'n'){
+    if (!(yOrN == 'y')){
         hideCurser();
         clearScreen();
         get_terminal_size(width, height);
@@ -207,15 +210,15 @@ void introsequence(){
     }*/
 
     moveCurser(1,1);
-    printf("From input: %d", speed);
-    usleep(1000 * millis);
+    printf("From input: %d, input: %s", speed, input);
+    usleep(4000 * millis);
 
     //Convert it to a string
-    speed = atoi(input);
+    speed = stoi(input);
 
     moveCurser(1,1);
     printf("After stoi %d", speed);
-        usleep(1000 * millis);
+    usleep(4000 * millis);
 
 
     //If speed is out of bounds, fix it
@@ -227,7 +230,7 @@ void introsequence(){
 
     moveCurser(1,1);
     printf("%d", speed);
-        usleep(1000 * millis);
+        usleep(4000 * millis);
 
 
 /*
@@ -278,11 +281,11 @@ void introsequence(){
 }
 
 
-/**********************\
-
-        Threads
-
-\**********************/
+/***************************************************************************\
+*                                                                           *
+*                                   Threads                                 *
+*                                                                           *
+\***************************************************************************/
 
 
 //A thread dedicated to reading keyboard inputs and putting them in a queue for the main program to read
@@ -294,7 +297,7 @@ void readKeyboard(){
         printf("Score: %d  ", score);
         printf("Speed: %d  ", speed);
         
-        if (readKeyBoardOn || isGameOver){
+        if (readKeyBoardOn || !isGameOver){
             cin >> c;
         }
 
@@ -311,13 +314,12 @@ void readKeyboard(){
             inputChar.push(c);
         }
 
-        //Sleep to not hog cpu
         usleep(50 * millis);
     }
 }
 
 int main(){
-
+    //Start intro sequence
     if (1){
         introsequence();
     } else{
@@ -336,7 +338,7 @@ int main(){
     snakeNode* snakeHead = result.first;
     snakeNode* snakeEnd = result.second;
 
-    //Initialize fruit
+    //Generate first fruit
     fruitGen(snakeHead);
 
     //Start second thread to read keyboard inputs from user
@@ -347,6 +349,7 @@ int main(){
 
     //Main game loop
     while(!isGameOver){
+        //Initialize variables
         int lastDirection = direction;
         int newX;
         int newY;
@@ -385,7 +388,7 @@ int main(){
             direction = lastDirection;
         }
 
-        //Update newX and newY based on input
+        //Update newX and newY based on direction
         switch (direction){
             case 0:
                 newX = snakeHead->x;
@@ -413,7 +416,7 @@ int main(){
             break;
         }
 
-        //Create new head and move linked list along
+        //Create new head and move linked list along and display new head location
         snakeNode* n = new snakeNode;
         n->x = newX;
         n->y = newY;
@@ -426,22 +429,23 @@ int main(){
         mvp(n->next->x, n->next->y, mainC);
 
         if (newX == fruitX && newY == fruitY){ //Check if the snake has hit a piece of fruit
+            //If so, generate a new fruit, and increase the score and length
             fruitGen(snakeHead);
             score++;
             length++;
         } else {
-            //If the user did not hit an apple, delete the end of the snake
+            //If the user did not hit a fruit, remove the last node of the snake
             mvp(snakeEnd->x, snakeEnd->y, ' ');
 
             snakeEnd = snakeEnd->previous;
             delete snakeEnd->next;
         }
 
-        //Sleep to not hog cpu
-        usleep((105 - speed) * millis);
+        //Sleep to not hog cpu, and set the speed of the game
+        usleep((115 - speed) * millis);
     }
 
-    //End keyboard reading thread and disable raw mode
+    //After game has ended, stop keyboard reading thread and return the terminal to its previous conditions
     readKeyBoardOn = false;
     t1.join();
     showCurser();
