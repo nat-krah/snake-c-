@@ -19,7 +19,6 @@
 /*
 Bugs
 - Introsequence
-    - Some problems with inputing data, misleading instructions
     - No data cleaning, so if someone inputs wrong data type then things break
 */
 
@@ -35,7 +34,7 @@ struct snakeNode{
 //Windowsize structure
 struct winsize size;
 
-//Create a queue to hold inputed chars
+//Queue to hold inputs, played by readKeyboard thread, pop by main thread
 queue<char> inputChar;
 
 //Pogram handling
@@ -44,10 +43,10 @@ bool isGameOver = false;
 bool readKeyBoardOn = true;
 
 //Game state
-int startWidth = 1;
-int startHeight = 1;
-int width = 0;
-int height = 0;
+int startWidth = 1; //Starting x position of game
+int startHeight = 1; //Starting y position of game
+int width = 0; //Width of playable game
+int height = 0; //Height of playable game
 int score = 0;
 
 int speed = 50;
@@ -55,14 +54,15 @@ int maxSpeed = 100;
 int minSpeed = 0;
 
 //Snake Variables
-char mainC = '*';
-char headC = '*';
+char mainC = '*'; //Char used to represent main body
+char headC = '*'; //Char used to represent head of body
 int length = 10;
-int direction = 0;
+int direction = 0; //0 up; 1 left; 2 down; 3 right
 
+//Fruit variables
+int fruitChar = '0'; //Char used to represent fruit
 int fruitX = 0;
 int fruitY = 0;
-int fruitChar = '0';
 
 
 /***************************************************************************\
@@ -75,8 +75,20 @@ int fruitChar = '0';
 //Generate a sudo random number from x to y
 int randi(int x, int y){
     srand(time(0));
-    int randNum = x + (rand() % (y - x + 1));
-    return randNum;
+    return x + (rand() % (y - x + 1));
+}
+
+//Flush standard input until enter key was hit
+void flushinp(){
+    while (getchar() != '\n'){}
+}
+
+//Get size of terminal
+void get_terminal_size(int& width, int& height) {
+    struct winsize w;
+    ioctl(fileno(stdout), TIOCGWINSZ, &w);
+    width = (int)(w.ws_col);
+    height = (int)(w.ws_row);
 }
 
 //Walk down the linked list snake and print each charater
@@ -90,7 +102,7 @@ void printSnake(snakeNode* snakeHead){
     mvp(snakeHead->x, snakeHead->y, headC);
 }
 
-//Check if the snake collided with itself
+//Check if the snake collided with itself or the outer bounds of the game
 bool checkCollision(snakeNode* snakeHead, int newX, int newY){
     snakeNode* t = snakeHead;
     for (int i = 0; i < length + 1; i++){
@@ -101,45 +113,6 @@ bool checkCollision(snakeNode* snakeHead, int newX, int newY){
         t = t->next;
     }
     return false;
-}
-
-//Generate fruit
-void fruitGen(snakeNode* snakeHead){
-    bool fruitWorks = false;
-    int newX = 0;
-    int newY = 0;
-
-    int i = 0; //If it takes over 1000 cycles to find a fruit location, then stop looking so it doesn't hang the program
-    while (!fruitWorks && i < 1000){
-        newX = randi(startWidth, width);
-        newY = randi(startHeight, height);
-
-        bool collision = false;
-        snakeNode* tS = snakeHead;
-        for (int i = 0; i < length; i ++){
-            if (tS->x == newX && tS->y == newY){
-                collision = true;
-                break;
-            }
-            tS = tS->next;
-        }
-
-        if (!collision){
-            fruitWorks = true;
-        }
-        i++;
-    }
-    
-    if (!fruitWorks){
-        moveCurser(1,1);
-        printf("No fruit spawned");
-        return;
-
-    }
-
-    fruitX = newX;
-    fruitY = newY;
-    mvp(fruitX, fruitY, fruitChar);
 }
 
 //Initialize the snake
@@ -164,21 +137,44 @@ pair<snakeNode*, snakeNode*> snakeINI(int startX, int startY){
     return make_pair(snakeHead, snakeEnd);
 }
 
-//Get size of terminal
-void get_terminal_size(int& width, int& height) {
-    struct winsize w;
-    ioctl(fileno(stdout), TIOCGWINSZ, &w);
-    width = (int)(w.ws_col);
-    height = (int)(w.ws_row);
+//Generate fruit
+void fruitGen(snakeNode* snakeHead){
+    bool fruitWorks = false;
+    int newX = 0;
+    int newY = 0;
+
+    while (!fruitWorks){
+        newX = randi(startWidth, width);
+        newY = randi(startHeight, height);
+
+        bool collision = false;
+        snakeNode* tS = snakeHead;
+        for (int i = 0; i < length; i ++){
+            if (tS->x == newX && tS->y == newY){
+                collision = true;
+                break;
+            }
+            tS = tS->next;
+        }
+
+        if (!collision){
+            fruitWorks = true;
+        }
+    }
+
+    fruitX = newX;
+    fruitY = newY;
+    mvp(fruitX, fruitY, fruitChar);
 }
 
+//Draws the board, defaults to the terminal size and centering the y axis
 void drawBoarder(int x = width, int y = height, bool ceneterY = true){
     int xOffset = 0;
     int yOffset = 0;
 
     if (x >= width || x < 3){
         xOffset = 1;
-        x = width ; // Might need to be width - 1 to account for going up to the edge
+        x = width ;
     } else{
         xOffset = (width - x)/2;
     }
@@ -213,27 +209,30 @@ void drawBoarder(int x = width, int y = height, bool ceneterY = true){
 }
 
 
-//This needs more work
+//Intro sequence to start off game
 void introsequence(){
     //Boolean checker for intro sequence
     char yOrN;
 
-    //Start intro sequence
+    //Display basic game info 
     clearScreen();
     snake3D();
     controls();
 
-    printf("Use intro sequence (y/n): ");
+    printf("Start intro sequence to costomize game (y/n): ");
     cin >> yOrN;
 
+    //If user selected to not do any costomization, setup the game state and exit the function
     if (!(yOrN == 'y')){
-        printf("Press enter to start");
+        enableRawMode();
+
+        printf("Press a letter to start");
+        flushinp();
         cin >> yOrN;
 
         hideCurser();
         clearScreen();
         get_terminal_size(width, height);
-        enableRawMode();
         drawBoarder(70, 35);
 
         moveCurser((width - startWidth + startWidth * 2) / 2 - 11, 1);
@@ -247,6 +246,7 @@ void introsequence(){
 
     //Get input from user
     char input[5];
+    flushinp();
     printf("Set start speed (0 - 100): ");
     cin >> speed;
 
@@ -261,8 +261,11 @@ void introsequence(){
     printf("Set custom size (y/n): ");
     cin >> yOrN;
     if (!(yOrN == 'y')){
-        printf("Press enter to start");
-        getchar();
+        enableRawMode();
+
+        printf("Press a letter to start");
+        flushinp();
+        cin >> yOrN;
 
         clearScreen();
         hideCurser();
@@ -275,13 +278,17 @@ void introsequence(){
         bool ceneterY = true;
 
         printf("Select height: ");
+        flushinp();
         cin >> inputedWidth;
         printf("Select width: ");
+        flushinp();
         cin >> inputedHeight;
         printf("Center along y axis (y/n): ");
+        flushinp();
         cin >> yOrN;
 
-        printf("Press enter to start");
+        printf("Press a letter to start");
+        flushinp();
         cin >> yOrN;
 
 
@@ -310,7 +317,6 @@ void introsequence(){
 
 
 //A thread dedicated to reading keyboard inputs and putting them in a queue for the main program to read
-//Should add a thread sleep to reduce cpu usage for such a simple thread
 void readKeyboard(){
     char c = ' ';
     while(readKeyBoardOn){
@@ -318,17 +324,17 @@ void readKeyboard(){
             cin >> c;
         }
         
+        //Display game info
         moveCurser((width - startWidth + startWidth * 2) / 2 - 11, 1);
         printf(" Score: %d  ", score);
         printf("Speed: %d ", speed);
-        
-        
 
         //First check if the inputed char is a control code
         //If it is, do that action
         //Else push the key onto the queue for the other function
         if (c == 'q'){
             isGameOver = true;
+            disableRawMode();
         } else if (c == 'e' && speed < maxSpeed){
             speed = speed + 5;
         } else if (c == 'f' && speed > minSpeed){
@@ -440,6 +446,7 @@ int main(){
         snakeHead->previous = n;
         snakeHead = n;
 
+        
         mvp(n->x, n->y, headC);
         mvp(n->next->x, n->next->y, mainC);
 
@@ -463,6 +470,7 @@ int main(){
     //After game has ended, stop keyboard reading thread and return the terminal to its previous conditions
     readKeyBoardOn = false;
     t1.join();
+    clearScreen();
     showCurser();
     disableRawMode();
 }
