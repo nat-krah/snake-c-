@@ -23,6 +23,6 @@ void snake3D(){
 void controls(){
     printf("Use wasd to control the snake\r\n");
     printf("q to quit the game\r\n");
-    printf("e to speed up the snake and f to slow it down\r\n");
+    printf("e to speed up and f to slow down\r\n");
     printf("Once an end condition has been met, press a button to continue an exit the game\r\n");
 }

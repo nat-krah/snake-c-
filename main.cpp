@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <iostream>
 #include <thread>
 #include <queue>
@@ -8,22 +9,19 @@
 #include "rawmode.cpp"
 #include "asciiArt.cpp"
 
-
-/*
-Work to do:
-- rewrite fruitGen()
-- fix intro sequence
-- bugs
-    - hitting the bottom on the game causes funny graphics
-*/
-
-
 /***************************************************************************\
 *                                                                           *
 *                                  Variables                                *
 *                                                                           *
 \***************************************************************************/
 
+
+/*
+Bugs
+- Introsequence
+    - Some problems with inputing data, misleading instructions
+    - No data cleaning, so if someone inputs wrong data type then things break
+*/
 
 //Snake structure
 struct snakeNode{
@@ -46,9 +44,10 @@ bool isGameOver = false;
 bool readKeyBoardOn = true;
 
 //Game state
+int startWidth = 1;
+int startHeight = 1;
 int width = 0;
 int height = 0;
-int heightBuffer = 2;
 int score = 0;
 
 int speed = 50;
@@ -95,7 +94,7 @@ void printSnake(snakeNode* snakeHead){
 bool checkCollision(snakeNode* snakeHead, int newX, int newY){
     snakeNode* t = snakeHead;
     for (int i = 0; i < length + 1; i++){
-        if ((newX == t->x && newY == t->y) || (newX < 0 || newY < heightBuffer || newX > width || newY > height)){
+        if ((newX == t->x && newY == t->y) || (newX < startWidth || newY < startHeight || newX > width || newY > height)){
             isGameOver = true;
             return true;
         }
@@ -104,16 +103,16 @@ bool checkCollision(snakeNode* snakeHead, int newX, int newY){
     return false;
 }
 
-//This is eneffiecient and should be rewritten
+//Generate fruit
 void fruitGen(snakeNode* snakeHead){
     bool fruitWorks = false;
     int newX = 0;
     int newY = 0;
 
-    int i = 0;
-    while (!fruitWorks && i < 50){
-        newX = randi(0, width);
-        newY = randi(heightBuffer, height);
+    int i = 0; //If it takes over 1000 cycles to find a fruit location, then stop looking so it doesn't hang the program
+    while (!fruitWorks && i < 1000){
+        newX = randi(startWidth, width);
+        newY = randi(startHeight, height);
 
         bool collision = false;
         snakeNode* tS = snakeHead;
@@ -125,29 +124,35 @@ void fruitGen(snakeNode* snakeHead){
             tS = tS->next;
         }
 
-        if (collision){
+        if (!collision){
             fruitWorks = true;
         }
         i++;
     }
+    
+    if (!fruitWorks){
+        moveCurser(1,1);
+        printf("No fruit spawned");
+        return;
+
+    }
 
     fruitX = newX;
     fruitY = newY;
-
     mvp(fruitX, fruitY, fruitChar);
 }
 
 //Initialize the snake
-pair<snakeNode*, snakeNode*> snakeINI(int startPos[2]){
+pair<snakeNode*, snakeNode*> snakeINI(int startX, int startY){
     snakeNode* snakeHead = new snakeNode;
-    snakeHead->x = startPos[0];
-    snakeHead->y = startPos[1];
+    snakeHead->x = startX;
+    snakeHead->y = startY;
 
     snakeNode* t = snakeHead;
     for (int i = 1; i < length + 1; i++){
         snakeNode* n = new snakeNode;
-        n->x = startPos[0] - i;
-        n->y = startPos[1];
+        n->x = startX - i;
+        n->y = startY;
 
         n->previous = t;
         t->next = n;
@@ -167,28 +172,75 @@ void get_terminal_size(int& width, int& height) {
     height = (int)(w.ws_row);
 }
 
+void drawBoarder(int x = width, int y = height, bool ceneterY = true){
+    int xOffset = 0;
+    int yOffset = 0;
+
+    if (x >= width || x < 3){
+        xOffset = 1;
+        x = width ; // Might need to be width - 1 to account for going up to the edge
+    } else{
+        xOffset = (width - x)/2;
+    }
+
+    if (y >= height || y < 3){
+        yOffset = 1;
+        y = height - 2;
+    } else{
+        if (ceneterY){
+            yOffset = (height - y) / 2;
+        } else{
+            yOffset = 1;
+        }
+    }
+
+    for (int i = yOffset; i <= y + yOffset; i++){
+        for (int j = xOffset; j <= x + xOffset; j++){
+            moveCurser(j, i);
+
+            if (i == yOffset || i == y + yOffset){
+                printf("-");
+            } else if (j == xOffset || j == x + xOffset){
+                printf("|");
+            }    
+        }
+    }
+
+    startWidth = xOffset + 1;
+    startHeight = yOffset + 1;
+    width = xOffset + x - 1;
+    height = yOffset + y - 1;
+}
 
 
 //This needs more work
 void introsequence(){
-    
-    //Check if we should use intro sequence
+    //Boolean checker for intro sequence
     char yOrN;
-
-    printf("Use intro sequence (y/n): ");
-    cin >> yOrN;
-
-    if (!(yOrN == 'y')){
-        hideCurser();
-        clearScreen();
-        get_terminal_size(width, height);
-        return;
-    }
 
     //Start intro sequence
     clearScreen();
     snake3D();
     controls();
+
+    printf("Use intro sequence (y/n): ");
+    cin >> yOrN;
+
+    if (!(yOrN == 'y')){
+        printf("Press enter to start");
+        cin >> yOrN;
+
+        hideCurser();
+        clearScreen();
+        get_terminal_size(width, height);
+        enableRawMode();
+        drawBoarder(70, 35);
+
+        moveCurser((width - startWidth + startWidth * 2) / 2 - 11, 1);
+        printf(" Score: %d  ", score);
+        printf("Speed: %d ", speed);
+        return;
+    }
 
 
     //Start speed
@@ -196,88 +248,57 @@ void introsequence(){
     //Get input from user
     char input[5];
     printf("Set start speed (0 - 100): ");
-    cin >> input;
+    cin >> speed;
 
-    /*
-    //Clean any non ints from it
-    int index = 0;
-    char save[5];
-    for(int i = 0; i < 6; i++){
-        if (int(input[i]) >= 48 && int(input[i]) <= 57){
-            save[index] = input[i];
-            index++;
-        }
-    }*/
-
-    moveCurser(1,1);
-    printf("From input: %d, input: %s", speed, input);
-    usleep(4000 * millis);
-
-    //Convert it to a string
-    speed = stoi(input);
-
-    moveCurser(1,1);
-    printf("After stoi %d", speed);
-    usleep(4000 * millis);
-
-
-    //If speed is out of bounds, fix it
     if (speed > maxSpeed){
         speed = maxSpeed;
     } else if (speed < minSpeed){
         speed = minSpeed;
     }
 
-    moveCurser(1,1);
-    printf("%d", speed);
-        usleep(4000 * millis);
-
-
-/*
-
     //Custom size
+
     printf("Set custom size (y/n): ");
     cin >> yOrN;
-    if (yOrN == 'y'){
-        char screenSizeIn[250];
-        printf("Select size (x,y); space for default: ");
-        //set width and height her based in parsing of the inputed values
+    if (!(yOrN == 'y')){
+        printf("Press enter to start");
+        getchar();
+
+        clearScreen();
+        hideCurser();
+        get_terminal_size(width, height);
+        enableRawMode();
+        drawBoarder(70, 35);
     } else{
+        int inputedWidth = 0;
+        int inputedHeight = 0;
+        bool ceneterY = true;
 
-    }
+        printf("Select height: ");
+        cin >> inputedWidth;
+        printf("Select width: ");
+        cin >> inputedHeight;
+        printf("Center along y axis (y/n): ");
+        cin >> yOrN;
 
-    //This is left out until parcing is implremented
-    //Get the size of the terminal
-    hideCurser();
-    get_terminal_size(width, height);
-    printf("%d, %d", width, height);
-
-    //Display the controls and wait until a char in imputed
-    //controls();
-    moveCurser(0, 0);
-
-    usleep(500 * millis);
-    getchar();
-    getchar();
+        printf("Press enter to start");
+        cin >> yOrN;
 
 
-    //Clear screen before clearing box
-    clearScreen();
-
-    /*
-    //print walls
-    moveCurser(0, 2);
-    for (int i = 0; i < width; i++){
-        cout << "#";
-        for(int j = 0; j < width - 4; j++){
-            if (i == 0 || i == height - 1){
-                cout << "#";
-            } else{
-                cout << " ";
-            }
+        if (!(yOrN == 'y')){
+            ceneterY = false;
         }
-        cout << "#\n";
-    }*/
+
+        clearScreen();
+        hideCurser();
+        get_terminal_size(width, height);
+        enableRawMode();
+        drawBoarder(inputedWidth, inputedHeight, ceneterY);
+    }
+    
+    moveCurser((width - startWidth + startWidth * 2) / 2 - 11, 1);
+    printf(" Score: %d  ", score);
+    printf("Speed: %d ", speed);
 }
 
 
@@ -293,13 +314,15 @@ void introsequence(){
 void readKeyboard(){
     char c = ' ';
     while(readKeyBoardOn){
-        moveCurser((width - 9) / 2, 0);
-        printf("Score: %d  ", score);
-        printf("Speed: %d  ", speed);
-        
         if (readKeyBoardOn || !isGameOver){
             cin >> c;
         }
+        
+        moveCurser((width - startWidth + startWidth * 2) / 2 - 11, 1);
+        printf(" Score: %d  ", score);
+        printf("Speed: %d ", speed);
+        
+        
 
         //First check if the inputed char is a control code
         //If it is, do that action
@@ -320,20 +343,12 @@ void readKeyboard(){
 
 int main(){
     //Start intro sequence
-    if (1){
-        introsequence();
-    } else{
-        hideCurser();
-        clearScreen();
-        get_terminal_size(width, height);
-    }
-
-    //After startup, enable start raw mode
-    enableRawMode();
+    introsequence();
 
     //Initialize the snake
-    int startPos[2] = {width / 2, 20};
-    pair<snakeNode*, snakeNode*> result = snakeINI(startPos);
+    int startX = startWidth + (width - startWidth) / 2;
+    int startY = startHeight + (height - startHeight) / 2;
+    pair<snakeNode*, snakeNode*> result = snakeINI(startX, startY);
 
     snakeNode* snakeHead = result.first;
     snakeNode* snakeEnd = result.second;
