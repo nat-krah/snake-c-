@@ -43,7 +43,7 @@ Some emulators interpret these steps as linear increments (256 / 24) on all thre
 232-255: grayscale from dark to light in 24 steps.
 */
 void setFColor256(int id){
-    cout << "\033[38;5;" << id << "m";
+    cout << "\033[38;5;" << id << "m" << endl;
 }
 
 /*
@@ -56,19 +56,19 @@ Some emulators interpret these steps as linear increments (256 / 24) on all thre
 232-255: grayscale from dark to light in 24 steps.
 */
 void setBColor256(int id){
-    cout << "\033[48;5;" << id << "m";
+    cout << "\033[48;5;" << id << "m" << endl;
 }
 
 /*
 Set foreground (text) color used 24 bit rgb color
 */
 void setFColorRGB(int r, int g, int b){
-    cout << "\033[38;2;" << r << ";" << g << ";" << b << "m";
+    cout << "\033[38;2;" << r << ";" << g << ";" << b << "m" << endl;
 }
 
 /*
 Set background color used 24 bit rgb color
 */
 void setBColorRGB(int r, int g, int b){
-    cout << "\033[48;2;" << r << ";" << g << ";" << b << "m";
+    cout << "\033[48;2;" << r << ";" << g << ";" << b << "m" << endl;
 }

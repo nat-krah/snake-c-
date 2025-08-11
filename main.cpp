@@ -60,7 +60,7 @@ int length = 10;
 int direction = 0; //0 up; 1 left; 2 down; 3 right
 
 //Fruit variables
-int fruitChar = '0'; //Char used to represent fruit
+int fruitChar = '*'; //Char used to represent fruit
 int fruitX = 0;
 int fruitY = 0;
 
@@ -172,6 +172,9 @@ void drawBoarder(int x = width, int y = height, bool ceneterY = true){
     int xOffset = 0;
     int yOffset = 0;
 
+    setFColorRGB(200, 200, 200);
+    setBColorRGB(200, 200, 200);
+
     if (x >= width || x < 3){
         xOffset = 1;
         x = width ;
@@ -196,16 +199,18 @@ void drawBoarder(int x = width, int y = height, bool ceneterY = true){
 
             if (i == yOffset || i == y + yOffset){
                 printf("-");
-            } else if (j == xOffset || j == x + xOffset){
+            } else if (j == xOffset || j == (xOffset + 1) || j == x + xOffset || j == (x + xOffset - 1)){
                 printf("|");
             }    
         }
     }
 
-    startWidth = xOffset + 1;
+    startWidth = xOffset + 2;
     startHeight = yOffset + 1;
-    width = xOffset + x - 1;
+    width = xOffset + x - 2;
     height = yOffset + y - 1;
+
+    resetText();
 }
 
 
@@ -360,13 +365,16 @@ int main(){
     snakeNode* snakeEnd = result.second;
 
     //Generate first fruit
+    setFColorRGB(255, 0, 0);
     fruitGen(snakeHead);
 
     //Start second thread to read keyboard inputs from user
     thread t1(readKeyboard);
 
     //Print the entire snake
+    setFColorRGB(0,255, 0);
     printSnake(snakeHead);
+    resetText();
 
     //Main game loop
     while(!isGameOver){
@@ -446,17 +454,24 @@ int main(){
         snakeHead->previous = n;
         snakeHead = n;
 
+        setFColorRGB(0, 255, 0);
         
         mvp(n->x, n->y, headC);
         mvp(n->next->x, n->next->y, mainC);
 
+
+        resetText();
+
         if (newX == fruitX && newY == fruitY){ //Check if the snake has hit a piece of fruit
             //If so, generate a new fruit, and increase the score and length
+            setFColorRGB(255, 0, 0);
             fruitGen(snakeHead);
+            resetText();
             score++;
             length++;
         } else {
             //If the user did not hit a fruit, remove the last node of the snake
+            resetText();
             mvp(snakeEnd->x, snakeEnd->y, ' ');
 
             snakeEnd = snakeEnd->previous;
@@ -466,6 +481,8 @@ int main(){
         //Sleep to not hog cpu, and set the speed of the game
         usleep((115 - speed) * millis);
     }
+
+    usleep(500 *millis);
 
     //After game has ended, stop keyboard reading thread and return the terminal to its previous conditions
     readKeyBoardOn = false;
